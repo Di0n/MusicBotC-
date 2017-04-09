@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TS3QueryLib.Core.CommandHandling;
+using TS3QueryLib.Core.Common.Responses;
 using TS3QueryLib.Core.Server;
 using TS3QueryLib.Core.Server.Notification.EventArgs;
 
@@ -11,10 +13,20 @@ namespace MusicBot
 {
     class CommandHandler
     {
-        public static void OnHelp(ref QueryRunner qr)
+        private QueryRunner qr;
+        public CommandHandler(ref QueryRunner qr)
         {
-            uint cid = Utils.GetMusicChannelID(qr);
-
+            this.qr = qr;
+        }
+        
+        /// <summary>
+        /// OnHelp() Command
+        /// </summary>
+        /// <param name="target">Target can either be a channel or a user.</param>
+        /// <param name="cid">Receiver of the help text, can be a channel or a user, depends on target.</param>
+        /// <returns>SimpleResponse</returns>
+        public SimpleResponse OnHelp(MessageTarget target,uint cid)
+        {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("\n");
             sb.AppendLine("*** Available Commands ***");
@@ -23,24 +35,32 @@ namespace MusicBot
             sb.AppendLine("!song            Displays the current song");
             sb.AppendLine("!add <url>       Adds a song to the queue");
            
-            qr.SendTextMessage(TS3QueryLib.Core.CommandHandling.MessageTarget.Channel, cid, sb.ToString());
+            
+            return qr.SendTextMessage(target, cid, sb.ToString());
         }
 
-        public static void OnPlay(ref QueryRunner qr, MessageReceivedEventArgs e)
+        public void OnPlay(string url)
         {
-            if (!(e.Message.Contains("youtu") || e.Message.Contains("soundcloud")))
+            if (!(url.Contains("youtu") || url.Contains("soundcloud")))
                 return;
 
-            string url = e.Message.Substring(5);
-            url.Trim();
+            url = url.Substring(5);
+            url = url.Trim();
 
             if (Uri.IsWellFormedUriString(url, UriKind.Absolute))
                 Process.Start(url);
         }
 
-        public static void OnSong(ref QueryRunner qr)
+        public SimpleResponse OnSong(MessageTarget target, uint cid)
+        {
+            // mchannel.getCurrentSong()
+        }
+
+        public void OnAdd()
         {
 
         }
+
+        
     }
 }

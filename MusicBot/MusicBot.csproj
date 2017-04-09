@@ -45,6 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CommandHandler.cs" />
+    <Compile Include="Enums.cs" />
     <Compile Include="InitialiseHelper.cs" />
     <Compile Include="MusicPlayer.cs" />
     <Compile Include="Program.cs" />
