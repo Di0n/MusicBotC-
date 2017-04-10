@@ -61,7 +61,7 @@ namespace MusicBot
 
             WhoAmIResponse resp = queryRunner.SendWhoAmI();
 
-            uint cid = Utils.GetMusicChannelID(queryRunner);
+            uint cid = Utils.GetMusicChannelID(ref queryRunner);
 
             queryRunner.MoveClient(resp.ClientId, cid);
 
