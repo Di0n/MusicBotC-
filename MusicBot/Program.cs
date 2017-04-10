@@ -36,6 +36,7 @@ namespace MusicBot
         private AsyncTcpDispatcher queryDispatcher;
         private QueryRunner queryRunner;
         private CommandHandler cmdHandler;
+        private MusicPlayer mPlayer;
 
         public string ServerAddress { get; private set; }
         public ushort Port { get; private set; }
@@ -113,6 +114,7 @@ namespace MusicBot
             queryRunner.Notifications.ClientMessageReceived += (o, ev) => OnMessageReceived(MessageTarget.Client, ev);
 
             cmdHandler = new CommandHandler(ref queryRunner);
+            mPlayer = new MusicPlayer(ref queryRunner);
             Console.WriteLine("Server version:\n\nPlatform: {0}\nVersion: {1}\nBuild: {2}\n", vResp.Platform, vResp.Version, vResp.Build);
             initHelper.Success = true;
         }
@@ -138,33 +140,31 @@ namespace MusicBot
             switch (command)
             {
                 case "!mhelp":
-                    uint cid = Utils.GetMusicChannelID(ref queryRunner);
-                    cmdHandler.OnHelp(target, cid);
+                    uint cid = (target == MessageTarget.Channel) ? Utils.GetMusicChannelID(ref queryRunner) : e.InvokerClientId;
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine("\n");
+                    sb.AppendLine("*** Available Commands ***");
+                    sb.AppendLine("!mhelp           Displays help");
+                    sb.AppendLine("!play <url>      Starts playing the requested song");
+                    sb.AppendLine("!song            Displays the current song");
+                    sb.AppendLine("!add <url>       Adds a song to the queue");
+                    SendText(target, cid, sb.ToString());
                     break;
                 case "!play":
                     string url = 
+                    if (!(command.Contains("youtu") || command.Contains("soundcloud")))
+                        return;
+
+                    url = url.Substring(5);
+                    url = url.Trim();
+                    mPlayer.PlaySong("");
                     break;
                 case "!add":
+                    mPlayer.AddSong("");
                     break;
                 default:
                     break;
             }
-            if (command == "!mhelp")
-            {
-                uint cid = Utils.GetMusicChannelID(queryRunner);
-                cmdHandler.OnHelp(MessageTarget.Channel, cid);
-            }
-            else if (command.StartsWith("!play"))
-            {
-                if (!(command.Contains("youtu") || command.Contains("soundcloud")))
-                    return;
-
-                url = url.Substring(5);
-                url = url.Trim();
-                cmdHandler.OnPlay(command);
-            }
-            else if (command.StartsWith("!add"))
-                cmdHandler.OnAdd();
         }
 
 
@@ -175,6 +175,11 @@ namespace MusicBot
         void QueryDispatcher_ServerClosedConnection(object sender, EventArgs e)
         {
 
+        }
+
+        SimpleResponse SendText(MessageTarget target, uint cid, string txt)
+        {
+            return queryRunner.SendTextMessage(target, cid, txt);
         }
 
     }

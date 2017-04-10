@@ -15,12 +15,12 @@ namespace MusicBot
             queryRunner = qr;
         }
 
-        public void PlaySong()
+        public void PlaySong(string url)
         {
-
+            
         }
 
-        public void AddSong()
+        public void AddSong(string url)
         {
 
         }
