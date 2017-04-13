@@ -54,6 +54,7 @@ namespace MusicBot
         public SimpleResponse OnSong(MessageTarget target, uint cid)
         {
             // mchannel.getCurrentSong()
+            return null;
         }
 
         public void OnAdd()

@@ -43,6 +43,7 @@ namespace MusicBot
 
         public Program(string serverAddress, ushort port)
         {
+            // Get ip, port, name, password
             ServerAddress = serverAddress;
             Port = port;
             initHelper = new InitialiseHelper();
@@ -71,7 +72,10 @@ namespace MusicBot
             keepAliveTimer.Elapsed += (o, e) => queryRunner.SendWhoAmI();
             keepAliveTimer.Start();
 
-            Console.ReadLine();
+            while (true)
+            {
+                Task.Delay(10).Wait();
+            }
         }
 
         private void Connect()
@@ -135,12 +139,13 @@ namespace MusicBot
                 }
             }
 
-            string command = e.Message.Substring(0, index);
+            string command = (index != 0) ? e.Message.Substring(0, index) : e.Message;
 
+            uint cid = (target == MessageTarget.Channel) ? Utils.GetMusicChannelID(ref queryRunner) : e.InvokerClientId;
             switch (command)
             {
                 case "!mhelp":
-                    uint cid = (target == MessageTarget.Channel) ? Utils.GetMusicChannelID(ref queryRunner) : e.InvokerClientId;
+                    //uint cid = (target == MessageTarget.Channel) ? Utils.GetMusicChannelID(ref queryRunner) : e.InvokerClientId;
                     StringBuilder sb = new StringBuilder();
                     sb.AppendLine("\n");
                     sb.AppendLine("*** Available Commands ***");
@@ -150,17 +155,29 @@ namespace MusicBot
                     sb.AppendLine("!add <url>       Adds a song to the queue");
                     SendText(target, cid, sb.ToString());
                     break;
+                case "!song":
+                    SendText(target, cid, mPlayer.CurrentSong.SongName);
+                    break;
+                case "!next":
+                    SendText(target, cid, mPlayer.NextSongInQueue.SongName);
+                    break;
+                case "!skip":
+                    mPlayer.PlayNextSongInQueue();
+                    break;
                 case "!play":
-                    string url = 
-                    if (!(command.Contains("youtu") || command.Contains("soundcloud")))
+                case "!add":
+                    string url = e.Message.Substring(index);
+                    if (!(url.Contains("youtu") || url.Contains("soundcloud")))
                         return;
 
-                    url = url.Substring(5);
                     url = url.Trim();
-                    mPlayer.PlaySong("");
-                    break;
-                case "!add":
-                    mPlayer.AddSong("");
+                    url = url.Remove(url.IndexOf("[URL]"), 5);
+                    url = url.Remove(url.IndexOf("[/URL]"));
+
+                    if (command == "!play")
+                        mPlayer.PlaySong(url);
+                    else
+                        mPlayer.AddSongToQueue(url);
                     break;
                 default:
                     break;
