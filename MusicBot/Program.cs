@@ -12,6 +12,8 @@ using TS3QueryLib.Core.Server.Responses;
 using System.Timers;
 using TS3QueryLib.Core.CommandHandling;
 using TS3QueryLib.Core.Server.Notification.EventArgs;
+using IniParser;
+using IniParser.Model;
 
 namespace MusicBot
 {
@@ -20,33 +22,51 @@ namespace MusicBot
         #region Program Start
         static void Main(string[] args)
         {
-            const string serverAddress = "62.112.11.135";
-            const ushort port = 10011;
+            FileIniDataParser parser = new FileIniDataParser();
+            IniData data = parser.ReadFile("Settings.ini");
 
-            new Program(serverAddress, port).Run();
+            string serverAddress = data["SERVER"]["IP"];
+            ushort port;
+            if (!ushort.TryParse(data["SERVER"]["Port"], out port))
+            {
+                Console.WriteLine("Failed to parse port.");
+                // TODO logging
+                return;
+            }
+
+            string name = data["QUERYUSER"]["Name"];
+            string password = data["QUERYUSER"]["Password"];
+           // const string serverAddress = "62.112.11.135";
+            //const ushort port = 10011;
+           
+            new Program(serverAddress, port, name, password).Run();
         }
 
         #endregion
 
-        const string NAME = "Dion";
-        const string PASSWORD = "z1aLbSUl";
+        //const string NAME = "Bassment";
+        //const string PASSWORD = "fbIG34+M";//"z1aLbSUl";
 
-        private InitialiseHelper initHelper;
+        private InitialiseHelper    initHelper;
 
-        private AsyncTcpDispatcher queryDispatcher;
-        private QueryRunner queryRunner;
-        private CommandHandler cmdHandler;
-        private MusicPlayer mPlayer;
+        private AsyncTcpDispatcher  queryDispatcher;
+        private QueryRunner         queryRunner;
+        private CommandHandler      cmdHandler;
+        private MusicPlayer         mPlayer;
 
-        public string ServerAddress { get; private set; }
-        public ushort Port { get; private set; }
+        public readonly string serverAddress;
+        public readonly ushort port;
+        public readonly string queryName;
+        public readonly string password;
 
-        public Program(string serverAddress, ushort port)
+        public Program(string serverAddress, ushort port, string queryName, string password)
         {
             // Get ip, port, name, password
-            ServerAddress = serverAddress;
-            Port = port;
-            initHelper = new InitialiseHelper();
+            this.serverAddress  = serverAddress;
+            this.port           = port;
+            this.queryName      = queryName;
+            this.password       = password;
+            initHelper          = new InitialiseHelper();
         }
 
         private void Run()
@@ -80,7 +100,7 @@ namespace MusicBot
 
         private void Connect()
         {
-            queryDispatcher = new AsyncTcpDispatcher(ServerAddress, Port);
+            queryDispatcher = new AsyncTcpDispatcher(serverAddress, port);
             queryDispatcher.ReadyForSendingCommands += QueryDispatcher_ReadyForSendingCommands;
             queryDispatcher.ServerClosedConnection += QueryDispatcher_ServerClosedConnection;
             queryDispatcher.SocketError += QueryDispatcher_SocketError;
@@ -91,7 +111,7 @@ namespace MusicBot
         {
             queryRunner = new QueryRunner(queryDispatcher);
 
-            SimpleResponse loginResp = queryRunner.Login(NAME, PASSWORD);
+            SimpleResponse loginResp = queryRunner.Login(queryName, password);
 
             if (loginResp.IsErroneous)
             {
