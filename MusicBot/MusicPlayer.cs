@@ -11,11 +11,9 @@ namespace MusicBot
 {
     class MusicPlayer
     {
-        private QueryRunner queryRunner;
         private Queue<Song> songList;
-        public MusicPlayer(ref QueryRunner qr)
+        public MusicPlayer()
         {
-            queryRunner = qr;
             songList = new Queue<Song>();
         }
 
@@ -70,6 +68,7 @@ namespace MusicBot
         {
             // find more info about song
             Url = url;
+            SongName = url;
             Started = false;
         }
 

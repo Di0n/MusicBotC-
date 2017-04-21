@@ -22,62 +22,52 @@ namespace MusicBot
         #region Program Start
         static void Main(string[] args)
         {
-            FileIniDataParser parser = new FileIniDataParser();
-            IniData data = parser.ReadFile("Settings.ini");
-
-            string serverAddress = data["SERVER"]["IP"];
-            ushort port;
-            if (!ushort.TryParse(data["SERVER"]["Port"], out port))
-            {
-                Console.WriteLine("Failed to parse port.");
-                // TODO logging
-                return;
-            }
-
-            string name = data["QUERYUSER"]["Name"];
-            string password = data["QUERYUSER"]["Password"];
-           // const string serverAddress = "62.112.11.135";
-            //const ushort port = 10011;
-           
-            new Program(serverAddress, port, name, password).Run();
+            new Program().Run();
         }
 
         #endregion
 
-        //const string NAME = "Bassment";
-        //const string PASSWORD = "fbIG34+M";//"z1aLbSUl";
-
         private InitialiseHelper    initHelper;
-
         private AsyncTcpDispatcher  queryDispatcher;
         private QueryRunner         queryRunner;
         private CommandHandler      cmdHandler;
-        private MusicPlayer         mPlayer;
 
-        public readonly string serverAddress;
-        public readonly ushort port;
-        public readonly string queryName;
-        public readonly string password;
+        private string serverAddress;
+        private ushort port;
+        private string queryName;
+        private string password;
 
-        public Program(string serverAddress, ushort port, string queryName, string password)
+        public Program() { }
+
+        private bool Initialize()
         {
-            // Get ip, port, name, password
-            this.serverAddress  = serverAddress;
-            this.port           = port;
-            this.queryName      = queryName;
-            this.password       = password;
-            initHelper          = new InitialiseHelper();
-        }
+            initHelper = new InitialiseHelper();
+            FileIniDataParser parser = new FileIniDataParser();
+            IniData data = parser.ReadFile("Settings.ini");
 
-        private void Run()
-        {
-            Connect();
-            initHelper.Wait();
-            if (!initHelper.Success)
+            serverAddress = data["SERVER"]["IP"];
+
+            if (!ushort.TryParse(data["SERVER"]["Port"], out port))
             {
-                Console.WriteLine("Initialising failed.");
-                return;
+                Console.WriteLine("Failed to parse port.");
+                // TODO logging
+                return false;
             }
+
+  
+            queryName = data["QUERYUSER"]["Name"];
+            password = data["QUERYUSER"]["Password"];
+
+            queryDispatcher = new AsyncTcpDispatcher(serverAddress, port);
+            queryDispatcher.ServerClosedConnection += QueryDispatcher_ServerClosedConnection;
+            queryDispatcher.SocketError += QueryDispatcher_SocketError;
+            queryDispatcher.ReadyForSendingCommands += QueryDispatcher_ReadyForSendingCommands;
+            queryDispatcher.Connect();
+            initHelper.Wait();
+
+            if (!initHelper.Success)
+                return false;
+
             initHelper.Dispose();
 
             WhoAmIResponse resp = queryRunner.SendWhoAmI();
@@ -92,19 +82,32 @@ namespace MusicBot
             keepAliveTimer.Elapsed += (o, e) => queryRunner.SendWhoAmI();
             keepAliveTimer.Start();
 
-            while (true)
+            return true;
+        }
+
+        private void Run()
+        {
+            #region Initialize
+            if (!Initialize())
             {
-                Task.Delay(10).Wait();
+                Console.WriteLine("Initializing failed.");
+                return;
+            }
+            #endregion
+
+            //*** Main Loop ***//
+            while (true) 
+            {
+                Task.Delay(10).Wait(); // Yield
             }
         }
 
-        private void Connect()
+        private void OnMessageReceived(MessageTarget target, MessageReceivedEventArgs e)
         {
-            queryDispatcher = new AsyncTcpDispatcher(serverAddress, port);
-            queryDispatcher.ReadyForSendingCommands += QueryDispatcher_ReadyForSendingCommands;
-            queryDispatcher.ServerClosedConnection += QueryDispatcher_ServerClosedConnection;
-            queryDispatcher.SocketError += QueryDispatcher_SocketError;
-            queryDispatcher.Connect();
+            if (!e.Message.StartsWith("!") || String.IsNullOrWhiteSpace(e.Message))
+                return;
+
+            cmdHandler.HandleCommand(target, e);
         }
 
         void QueryDispatcher_ReadyForSendingCommands(object sender, EventArgs e)
@@ -138,72 +141,10 @@ namespace MusicBot
             queryRunner.Notifications.ClientMessageReceived += (o, ev) => OnMessageReceived(MessageTarget.Client, ev);
 
             cmdHandler = new CommandHandler(ref queryRunner);
-            mPlayer = new MusicPlayer(ref queryRunner);
+            //mPlayer = new MusicPlayer(ref queryRunner);
             Console.WriteLine("Server version:\n\nPlatform: {0}\nVersion: {1}\nBuild: {2}\n", vResp.Platform, vResp.Version, vResp.Build);
             initHelper.Success = true;
         }
-
-        private void OnMessageReceived(MessageTarget target, MessageReceivedEventArgs e)
-        {
-            if (!e.Message.StartsWith("!") || String.IsNullOrWhiteSpace(e.Message))
-                return;
-
-            int index = 0;
-
-            for (int i = 0; i < e.Message.Length; i++)
-            {
-                if (e.Message[i] == ' ')
-                {
-                    index = i;
-                    break;
-                }
-            }
-
-            string command = (index != 0) ? e.Message.Substring(0, index) : e.Message;
-
-            uint cid = (target == MessageTarget.Channel) ? Utils.GetMusicChannelID(ref queryRunner) : e.InvokerClientId;
-            switch (command)
-            {
-                case "!mhelp":
-                    //uint cid = (target == MessageTarget.Channel) ? Utils.GetMusicChannelID(ref queryRunner) : e.InvokerClientId;
-                    StringBuilder sb = new StringBuilder();
-                    sb.AppendLine("\n");
-                    sb.AppendLine("*** Available Commands ***");
-                    sb.AppendLine("!mhelp           Displays help");
-                    sb.AppendLine("!play <url>      Starts playing the requested song");
-                    sb.AppendLine("!song            Displays the current song");
-                    sb.AppendLine("!add <url>       Adds a song to the queue");
-                    SendText(target, cid, sb.ToString());
-                    break;
-                case "!song":
-                    SendText(target, cid, mPlayer.CurrentSong.SongName);
-                    break;
-                case "!next":
-                    SendText(target, cid, mPlayer.NextSongInQueue.SongName);
-                    break;
-                case "!skip":
-                    mPlayer.PlayNextSongInQueue();
-                    break;
-                case "!play":
-                case "!add":
-                    string url = e.Message.Substring(index);
-                    if (!(url.Contains("youtu") || url.Contains("soundcloud")))
-                        return;
-
-                    url = url.Trim();
-                    url = url.Remove(url.IndexOf("[URL]"), 5);
-                    url = url.Remove(url.IndexOf("[/URL]"));
-
-                    if (command == "!play")
-                        mPlayer.PlaySong(url);
-                    else
-                        mPlayer.AddSongToQueue(url);
-                    break;
-                default:
-                    break;
-            }
-        }
-
 
         void QueryDispatcher_SocketError(object sender, TS3QueryLib.Core.Communication.SocketErrorEventArgs e)
         {
