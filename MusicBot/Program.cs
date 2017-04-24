@@ -14,15 +14,37 @@ using TS3QueryLib.Core.CommandHandling;
 using TS3QueryLib.Core.Server.Notification.EventArgs;
 using IniParser;
 using IniParser.Model;
+using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace MusicBot
 {
     class Program
     {
         #region Program Start
+        [STAThread]
         static void Main(string[] args)
         {
-            new Program().Run();
+            bool newInstance;
+            string guid = ((GuidAttribute)Assembly.GetExecutingAssembly().
+            GetCustomAttributes(typeof(GuidAttribute), false).GetValue(0)).Value.ToString();
+            string mutexID = String.Format("Global\\{{{0}}}", guid);
+            using (Mutex mutex = new Mutex(true, mutexID, out newInstance))
+            {
+                if (newInstance)
+                {
+                    new Program().Run();
+                }
+                else
+                    Console.WriteLine("MusicBot is already running!");
+
+                try
+                {
+                    mutex.ReleaseMutex();
+                }
+                catch (ApplicationException) { }
+                catch (ObjectDisposedException) { }
+            } 
         }
 
         #endregion
@@ -139,7 +161,7 @@ namespace MusicBot
 
             queryRunner.Notifications.ChannelMessageReceived += (o, ev) => OnMessageReceived(MessageTarget.Channel, ev);
             queryRunner.Notifications.ClientMessageReceived += (o, ev) => OnMessageReceived(MessageTarget.Client, ev);
-
+      
             cmdHandler = new CommandHandler(ref queryRunner);
             //mPlayer = new MusicPlayer(ref queryRunner);
             Console.WriteLine("Server version:\n\nPlatform: {0}\nVersion: {1}\nBuild: {2}\n", vResp.Platform, vResp.Version, vResp.Build);
